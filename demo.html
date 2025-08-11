@@ -1,0 +1,571 @@
+<!--
+  This is an updated version of the To-Do List web application,
+  with a new feature that highlights the next upcoming task based on the
+  current time.
+
+  Key features:
+  - New CSS classes for highlighting the active task.
+  - The JavaScript now includes a function that runs on a timer to check
+    the current time and compare it to the scheduled time of each task.
+  - The closest upcoming task is then assigned the 'next-task' class
+    to visually highlight it.
+  - All existing functionality for tasks, including duration, color coding,
+    icons, focus levels, and confetti, is preserved.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced To-Do List</title>
+
+    <!-- Basic CSS for styling the app -->
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            color: #333;
+            position: relative;
+            background-color: #f0f2f5;
+            background-image: url('https://images.unsplash.com/photo-1497215728101-856f4ea42174?ixlib=rb-4.0.3&q=80&fm=jpg&crop=entropy&cs=tinysrgb&w=1920&h=1080&fit=crop');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+        }
+
+        /* Overlay to make the app more readable on top of the image */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.4); /* Dark overlay */
+            z-index: -1;
+        }
+
+        #app {
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+            width: 100%;
+            max-width: 500px;
+            box-sizing: border-box;
+            position: relative;
+            z-index: 1;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 25px;
+            color: #1a1a1a;
+            font-size: 2.5rem;
+        }
+
+        .input-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 25px;
+        }
+
+        #taskInput, #timeInput, #durationInput, #taskType, #focusLevel {
+            flex-grow: 1;
+            padding: 12px 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+        #taskInput:focus, #timeInput:focus, #durationInput:focus, #taskType:focus, #focusLevel:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+        
+        #taskColor {
+            width: 50px;
+            height: 50px;
+            padding: 0;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        #addTaskBtn {
+            padding: 12px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+        }
+        #addTaskBtn:hover {
+            background-color: #45a049;
+            transform: translateY(-2px);
+        }
+        #addTaskBtn:active {
+            transform: translateY(0);
+        }
+
+        #taskList {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        #taskList li {
+            background-color: #f9f9f9;
+            border: 1px solid #eee;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: flex-start;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            cursor: pointer;
+            word-break: break-word;
+            position: relative;
+        }
+        #taskList li:hover {
+            background-color: #f1f1f1;
+        }
+
+        #taskList li.completed {
+            background-color: #e0f2e0;
+            text-decoration: line-through;
+            color: #888;
+        }
+        
+        #taskList li.completed::after {
+            content: '✅';
+            position: absolute;
+            top: 50%;
+            right: 40px;
+            transform: translateY(-50%);
+            font-size: 1.5rem;
+            opacity: 0.7;
+        }
+
+        /* Styling for the highlighted next task */
+        #taskList li.next-task {
+            border: 3px solid #3b82f6;
+            background-color: #e0f7ff;
+            box-shadow: 0 4px 10px rgba(59, 130, 246, 0.4);
+            transform: scale(1.02);
+            transition: all 0.3s ease-in-out;
+        }
+        #taskList li.next-task::before {
+            content: '🔜';
+            position: absolute;
+            left: -30px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 1.5rem;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: translateY(-50%) scale(1); opacity: 1; }
+            50% { transform: translateY(-50%) scale(1.1); opacity: 0.8; }
+            100% { transform: translateY(-50%) scale(1); opacity: 1; }
+        }
+
+        .task-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .task-header .task-icon {
+            font-size: 1.5rem;
+            margin-right: 5px;
+        }
+
+        .task-header .task-text {
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+
+        .task-details-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 5px;
+        }
+
+        .task-detail {
+            font-size: 0.8rem;
+            color: #999;
+        }
+
+        .remove-btn {
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            font-size: 1rem;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-shrink: 0;
+            transition: background-color 0.3s ease;
+            position: absolute;
+            top: 15px;
+            right: 15px;
+        }
+        .remove-btn:hover {
+            background-color: #c0392b;
+        }
+
+        /* End-of-Day Reflection styles */
+        #reflection-container {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #f0f2f5;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.06);
+        }
+        #reflection-container button {
+            padding: 10px 15px;
+            background-color: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        #reflection-container button:hover {
+            background-color: #2563eb;
+        }
+
+        /* --- Confetti Animation Styles --- */
+        .confetti-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: #f00;
+            border-radius: 50%;
+            animation: confetti-fall 2s linear forwards;
+        }
+
+        @keyframes confetti-fall {
+            0% {
+                transform: translateY(0) rotate(0deg);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(100vh) rotate(720deg);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="confetti-container"></div>
+
+    <div id="app">
+        <h1>Enhanced To-Do List</h1>
+        
+        <div class="input-container">
+            <input type="text" id="taskInput" placeholder="Enter a new task...">
+            <input type="time" id="timeInput">
+            <input type="text" id="durationInput" placeholder="Duration (e.g., 1h 30m)">
+            <select id="taskType">
+                <option value="">Icon</option>
+                <option value="📚">📚 Study</option>
+                <option value="💻">💻 Coding</option>
+                <option value="🧠">🧠 Brainstorming</option>
+                <option value="📞">📞 Meeting</option>
+                <option value="🧹">🧹 Cleaning</option>
+                <option value="☕">☕ Break</option>
+            </select>
+            <select id="focusLevel">
+                <option value="">Focus Level</option>
+                <option value="High">High</option>
+                <option value="Medium">Medium</option>
+                <option value="Low">Low</option>
+            </select>
+            <input type="color" id="taskColor" value="#ffffff">
+            <button id="addTaskBtn">Add</button>
+        </div>
+        
+        <ul id="taskList">
+        </ul>
+        
+        <div id="reflection-container" class="hidden">
+            <h2>End-of-Day Reflection</h2>
+            <div id="reflection-summary"></div>
+        </div>
+
+        <div id="next-day-preview" style="margin-top: 30px; text-align: center;">
+            <h2 style="font-size: 1.5rem; font-weight: 600; margin-bottom: 10px;">🗓️ Next Day Preview</h2>
+            <p style="color: #666;">Tomorrow 9:00 AM – Final animation for juice blender</p>
+        </div>
+
+    </div>
+
+    <!-- Vanilla JavaScript for To-Do List functionality -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // 1. Get references to our HTML elements
+            const taskInput = document.getElementById('taskInput');
+            const timeInput = document.getElementById('timeInput');
+            const durationInput = document.getElementById('durationInput');
+            const taskType = document.getElementById('taskType');
+            const focusLevel = document.getElementById('focusLevel');
+            const taskColor = document.getElementById('taskColor');
+            const addTaskBtn = document.getElementById('addTaskBtn');
+            const taskList = document.getElementById('taskList');
+            const confettiContainer = document.querySelector('.confetti-container');
+            const tasksData = []; // Store tasks data to sort by time
+
+            // Function to find and highlight the next upcoming task
+            function highlightNextTask() {
+                const now = new Date();
+                const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+                let closestTask = null;
+                let minTimeDifference = Infinity;
+
+                // Remove highlight from all tasks
+                taskList.querySelectorAll('li').forEach(li => {
+                    li.classList.remove('next-task');
+                });
+
+                tasksData.forEach(task => {
+                    const [hour, minute] = task.timestamp.split(':').map(Number);
+                    const taskMinutes = hour * 60 + minute;
+                    const timeDifference = taskMinutes - nowMinutes;
+
+                    // Find the task that is in the future but with the smallest time difference
+                    if (timeDifference > 0 && timeDifference < minTimeDifference) {
+                        minTimeDifference = timeDifference;
+                        closestTask = task;
+                    }
+                });
+
+                if (closestTask) {
+                    const taskElement = tasksData.find(t => t === closestTask).element;
+                    if (taskElement) {
+                        taskElement.classList.add('next-task');
+                    }
+                }
+            }
+
+            // Function to create and add a task to the list
+            function createTaskElement(taskData) {
+                const listItem = document.createElement('li');
+                listItem.style.backgroundColor = taskData.color;
+
+                const taskHeader = document.createElement('div');
+                taskHeader.className = 'task-header';
+
+                if (taskData.icon) {
+                    const taskIcon = document.createElement('span');
+                    taskIcon.className = 'task-icon';
+                    taskIcon.textContent = taskData.icon;
+                    taskHeader.appendChild(taskIcon);
+                }
+
+                const taskSpan = document.createElement('span');
+                taskSpan.className = 'task-text';
+                taskSpan.textContent = taskData.text;
+                taskHeader.appendChild(taskSpan);
+
+                const taskDetailsRow = document.createElement('div');
+                taskDetailsRow.className = 'task-details-row';
+
+                if (taskData.timestamp) {
+                    const timeSpan = document.createElement('span');
+                    timeSpan.className = 'task-detail';
+                    timeSpan.textContent = taskData.timestamp;
+                    taskDetailsRow.appendChild(timeSpan);
+                }
+                
+                if (taskData.duration) {
+                    const durationSpan = document.createElement('span');
+                    durationSpan.className = 'task-detail';
+                    durationSpan.textContent = `(${taskData.duration})`;
+                    taskDetailsRow.appendChild(durationSpan);
+                }
+
+                if (taskData.focus) {
+                    const focusSpan = document.createElement('span');
+                    focusSpan.className = 'task-detail';
+                    focusSpan.textContent = `Focus: ${taskData.focus}`;
+                    taskDetailsRow.appendChild(focusSpan);
+                }
+
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 'remove-btn';
+                removeBtn.textContent = 'x';
+                removeBtn.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    listItem.remove();
+                    // Remove the task from the data array as well
+                    const index = tasksData.findIndex(task => task.element === listItem);
+                    if (index !== -1) {
+                        tasksData.splice(index, 1);
+                    }
+                    highlightNextTask();
+                });
+
+                listItem.appendChild(taskHeader);
+                if (taskDetailsRow.children.length > 0) {
+                    listItem.appendChild(taskDetailsRow);
+                }
+                listItem.appendChild(removeBtn);
+
+                listItem.addEventListener('click', () => {
+                    listItem.classList.toggle('completed');
+                    if (listItem.classList.contains('completed')) {
+                        triggerConfetti(listItem);
+                    }
+                    highlightNextTask();
+                });
+
+                // Attach the element to the data object
+                taskData.element = listItem;
+                return listItem;
+            }
+            
+            // Function to trigger the confetti animation
+            function triggerConfetti(element) {
+                const colors = ['#f44336', '#e91e63', '#9c27b0', '#673ab7', '#3f51b5', '#2196f3', '#03a9f4', '#00bcd4', '#009688', '#4caf50', '#8bc34a', '#cddc39', '#ffeb3b', '#ffc107', '#ff9800', '#ff5722'];
+                const numConfetti = 50;
+                const rect = element.getBoundingClientRect();
+                const x = rect.left + rect.width / 2;
+                const y = rect.top + rect.height / 2;
+
+                for (let i = 0; i < numConfetti; i++) {
+                    const confetti = document.createElement('div');
+                    confetti.className = 'confetti';
+                    confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                    confetti.style.left = `${x}px`;
+                    confetti.style.top = `${y}px`;
+                    confetti.style.animationDelay = `${Math.random() * 0.5}s`;
+                    confetti.style.animationDuration = `${1.5 + Math.random() * 1}s`;
+                    confetti.style.transform = `translateX(${Math.random() * 200 - 100}px) translateY(${Math.random() * 200 - 100}px) rotate(${Math.random() * 360}deg)`;
+                    confettiContainer.appendChild(confetti);
+
+                    confetti.addEventListener('animationend', () => {
+                        confetti.remove();
+                    });
+                }
+            }
+
+            // Function to add a new user-input task
+            function addNewTask() {
+                const taskText = taskInput.value.trim();
+                let taskTime = timeInput.value.trim();
+                const taskDuration = durationInput.value.trim();
+                const taskIcon = taskType.value;
+                const taskFocus = focusLevel.value;
+                const taskBgColor = taskColor.value;
+
+                if (taskText !== "") {
+                    if (taskTime === "") {
+                        const now = new Date();
+                        taskTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                    }
+                    
+                    const taskData = {
+                        text: taskText,
+                        timestamp: taskTime,
+                        duration: taskDuration,
+                        icon: taskIcon,
+                        focus: taskFocus,
+                        color: taskBgColor
+                    };
+
+                    const newListItem = createTaskElement(taskData);
+                    taskList.appendChild(newListItem);
+                    tasksData.push(taskData); // Add to our data array
+                    
+                    taskInput.value = '';
+                    timeInput.value = '';
+                    durationInput.value = '';
+                    taskType.value = '';
+                    focusLevel.value = '';
+                    taskColor.value = '#ffffff';
+
+                    highlightNextTask(); // Update highlight after adding a new task
+                }
+            }
+
+            // 3. Add event listeners
+            addTaskBtn.addEventListener('click', addNewTask);
+            taskInput.addEventListener('keypress', (event) => {
+                if (event.key === 'Enter') {
+                    addNewTask();
+                }
+            });
+            timeInput.addEventListener('keypress', (event) => {
+                if (event.key === 'Enter') {
+                    addNewTask();
+                }
+            });
+            
+            // End-of-Day Reflection Logic (hidden by default)
+            const reflectionContainer = document.getElementById('reflection-container');
+            const reflectionSummary = document.getElementById('reflection-summary');
+            
+            const showReflectionButton = document.createElement('button');
+            showReflectionButton.textContent = "Show Today's Reflection";
+            showReflectionButton.style.marginTop = '20px';
+            showReflectionButton.addEventListener('click', () => {
+                let completedCount = 0;
+                let totalCount = 0;
+                const allTasks = taskList.querySelectorAll('li');
+                
+                allTasks.forEach(task => {
+                    totalCount++;
+                    if (task.classList.contains('completed')) {
+                        completedCount++;
+                    }
+                });
+                
+                const postponedCount = totalCount - completedCount;
+                
+                reflectionSummary.innerHTML = `
+                    <p>✅ Completed: ${completedCount}/${totalCount} tasks</p>
+                    <p>⏳ Postponed: ${postponedCount} task</p>
+                    <p>💡 Note: Start earlier tomorrow for better focus</p>
+                `;
+                reflectionContainer.classList.remove('hidden');
+                showReflectionButton.style.display = 'none';
+            });
+            
+            document.getElementById('app').appendChild(showReflectionButton);
+
+            // Periodically check and highlight the next task
+            setInterval(highlightNextTask, 60000); // Check every minute
+            highlightNextTask(); // Initial call
+        });
+    </script>
+</body>
+</html>
